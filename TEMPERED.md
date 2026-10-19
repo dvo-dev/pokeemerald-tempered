@@ -101,6 +101,7 @@ Expansion's smarter AI ("Smart Trainer") isn't given to any vanilla trainer.
 | Every other class | Basic Trainer: picks effective moves and goes for KOs | Yes | No |
 
 - The extra AI is added on top of each trainer's own AI, so per-trainer behaviour such as some Gym Leaders' "Risky" AI is kept.
+- Every trainer in a smart zone uses Smart Trainer AI, whatever their class. Currently: Victory Road. Zones are listed in `sSmartTrainerZones`.
 - In-game partners follow the same rule, so Steven (listed as a Rival) is a Smart Trainer in the Mossdeep Space Center battle, matching Maxie and Tabitha.
 - Battle Frontier, Trainer Hill and Secret Base battles keep their own fixed AI.
 
