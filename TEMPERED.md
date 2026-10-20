@@ -87,6 +87,15 @@ It has little effect in practice: upstream never counts Explosion as a KO in dou
 
 Changes outside the config headers.
 
+### Agent QA tooling
+
+| Configuration | Change | Motivation | Difficulty | Save |
+|---------------|--------|------------|------------|------|
+| `.gitignore` | Ignore `/qa-artifacts/` | Keep isolated QA source/build snapshots and emulator evidence local without deleting them automatically. | No | No |
+| `tools/qa/patches/mgba-python.patch` | Pin and repair the official mGBA Python bindings | Zero-initialize unused callbacks, match the native ABI, and use a private runtime library path without maintaining a separate wrapper or changing game code. | No | No |
+| `.devcontainer/Dockerfile`, `devcontainer.json`, `.dockerignore` | Build a private pinned QA runtime in a separate stage with a narrowly allowlisted context | Provide official mGBA bindings, recording tools, and static ABI/provenance checks without replacing the native test runner, exposing credentials to the build, or requiring nested Docker. | No | No |
+| `tools/qa/requirements.lock`, `pyproject.toml` | Isolate and pin QA Python dependencies | Keep the emulator, image, and DWARF tooling reproducible without installing into system Python. | No | No |
+
 ### Trainer AI
 
 <details>
