@@ -69,6 +69,10 @@ Use a host GitHub CLI OAuth login, not a classic personal access token (`ghp_`),
 The account must have Copilot access, and organization or enterprise policy must also allow Copilot CLI.
 If Copilot still requests login, check the GitHub CLI authentication setup above rather than accepting plaintext token storage inside the container.
 
+Copilot CLI's `/new worktree` and `/worktree` create Git worktrees in a folder next to the checkout, `/workspaces/<repository>.worktrees`.
+`/workspaces` itself is owned by `root`, so container setup creates that folder and gives it to the `vscode` user.
+The folder lives inside the container, so worktrees in it are not kept when the container is rebuilt; push branches you want to keep, and run `git worktree prune` inside the container to clear stale entries afterwards.
+
 ## Host architecture
 
 The image is built and run as `linux/amd64` because the bundled Linux test runner is x86-64.
