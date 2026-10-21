@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools==68.1.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tempered-qa"
+version = "0.1.0"
+description = "Deterministic, evidence-producing in-game QA for pokeemerald-tempered"
+requires-python = ">=3.12"
+dependencies = [
+    "cached-property==1.5.2",
+    "cffi==1.17.1",
+    "Pillow==11.3.0",
+    "pyelftools==0.31",
+]
+
+[project.scripts]
+qa = "qa.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["qa*"]
+
+[tool.setuptools.package-data]
+qa = ["mgba-python.patch"]

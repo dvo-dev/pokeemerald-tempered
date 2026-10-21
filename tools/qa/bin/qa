@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo="$(git -c core.hooksPath=/dev/null rev-parse --show-toplevel)"
+if [[ ! -f "$repo/tools/qa/qa/cli.py" ]]; then
+    printf 'Run qa from a checkout containing tools/qa\n' >&2
+    exit 3
+fi
+export PYTHONPATH="$repo/tools/qa"
+exec /opt/qa-venv/bin/python -P -m qa "$@"

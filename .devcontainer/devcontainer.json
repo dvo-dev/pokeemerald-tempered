@@ -1,6 +1,7 @@
 {
   "name": "pokeemerald-tempered",
   "build": {
+    "context": "..",
     "dockerfile": "Dockerfile",
     "options": ["--platform=linux/amd64"]
   },

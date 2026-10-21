@@ -1,0 +1,76 @@
+Base: mgba-emu/mgba fd9dc5c2cbf234365068855851107e762fc6211b
+Purpose: initialize unused Python callbacks and match the native build ABI.
+The patched source remains licensed under MPL-2.0.
+
+diff --git a/src/platform/python/CMakeLists.txt b/src/platform/python/CMakeLists.txt
+index dc4037ef5..eadbb8c3c 100644
+--- a/src/platform/python/CMakeLists.txt
++++ b/src/platform/python/CMakeLists.txt
+@@ -14,6 +14,24 @@ foreach(DIR IN LISTS INCLUDE_DIRECTORIES)
+       set(INCLUDE_FLAGS_STR "${INCLUDE_FLAGS_STR} \"-I${DIR}\"")
+ endforeach()
+ 
++# Keep cffi's parsed struct layout in lockstep with the actual library
++# compile definitions. The legacy command previously passed include paths
++# only, omitting feature defines and shifting fields after mCore.config.
++set(PYTHON_DEFINES)
++foreach(DEFINE IN LISTS OS_DEFINES FEATURE_DEFINES)
++      list(APPEND PYTHON_DEFINES "-D${DEFINE}")
++endforeach()
++if(M_CORE_GB)
++      list(APPEND PYTHON_DEFINES "-DM_CORE_GB")
++endif()
++if(M_CORE_GBA)
++      list(APPEND PYTHON_DEFINES "-DM_CORE_GBA")
++endif()
++list(APPEND INCLUDE_FLAGS ${PYTHON_DEFINES})
++foreach(DEFINE IN LISTS PYTHON_DEFINES)
++      set(INCLUDE_FLAGS_STR "${INCLUDE_FLAGS_STR} \"${DEFINE}\"")
++endforeach()
++
+ file(GLOB PYTHON_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/*.h)
+ 
+ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib.c
+@@ -31,7 +49,7 @@ set_target_properties(${BINARY_NAME}-pylib PROPERTIES INCLUDE_DIRECTORIES "${CMA
+ set_target_properties(${BINARY_NAME}-pylib PROPERTIES COMPILE_DEFINITIONS "${OS_DEFINES};${FEATURE_DEFINES};${FUNCTION_DEFINES}")
+ 
+ add_custom_target(${BINARY_NAME}-py ALL
+-                  COMMAND BINDIR=${PROJECT_BINARY_DIR} LIBDIR=${PROJECT_BINARY_DIR} CPPFLAGS="${INCLUDE_FLAGS}" ${PYTHON_EXECUTABLE} setup.py build -b ${CMAKE_CURRENT_BINARY_DIR}
++                  COMMAND BINDIR=${PROJECT_BINARY_DIR} LIBDIR=${CMAKE_INSTALL_PREFIX}/${LIBDIR} CPPFLAGS="${INCLUDE_FLAGS}" ${PYTHON_EXECUTABLE} setup.py build -b ${CMAKE_CURRENT_BINARY_DIR}
+                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                   DEPENDS ${BINARY_NAME}
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/setup.py
+@@ -40,17 +58,17 @@ add_custom_target(${BINARY_NAME}-py ALL
+                   DEPENDS ${BINARY_NAME}-pylib)
+ 
+ add_custom_target(${BINARY_NAME}-py-install
+-                  COMMAND BINDIR=${PROJECT_BINARY_DIR} LIBDIR=${PROJECT_BINARY_DIR} CPPFLAGS="${INCLUDE_FLAGS}" ${PYTHON_EXECUTABLE} setup.py install -b ${CMAKE_CURRENT_BINARY_DIR}
++                  COMMAND BINDIR=${PROJECT_BINARY_DIR} LIBDIR=${CMAKE_INSTALL_PREFIX}/${LIBDIR} CPPFLAGS="${INCLUDE_FLAGS}" ${PYTHON_EXECUTABLE} setup.py install -b ${CMAKE_CURRENT_BINARY_DIR}
+                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                   DEPENDS ${BINARY_NAME}-py)
+ 
+ add_custom_target(${BINARY_NAME}-py-develop
+-                  COMMAND BINDIR=${PROJECT_BINARY_DIR} LIBDIR=${PROJECT_BINARY_DIR} CPPFLAGS="${INCLUDE_FLAGS}" ${PYTHON_EXECUTABLE} setup.py develop -b ${CMAKE_CURRENT_BINARY_DIR}
++                  COMMAND BINDIR=${PROJECT_BINARY_DIR} LIBDIR=${CMAKE_INSTALL_PREFIX}/${LIBDIR} CPPFLAGS="${INCLUDE_FLAGS}" ${PYTHON_EXECUTABLE} setup.py develop -b ${CMAKE_CURRENT_BINARY_DIR}
+                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                   DEPENDS ${BINARY_NAME}-py)
+ 
+ add_custom_target(${BINARY_NAME}-py-bdist
+-                  COMMAND BINDIR=${PROJECT_BINARY_DIR} LIBDIR=${PROJECT_BINARY_DIR} CPPFLAGS="${INCLUDE_FLAGS}" ${PYTHON_EXECUTABLE} setup.py bdist_wheel -b ${CMAKE_CURRENT_BINARY_DIR}
++                  COMMAND BINDIR=${PROJECT_BINARY_DIR} LIBDIR=${CMAKE_INSTALL_PREFIX}/${LIBDIR} CPPFLAGS="${INCLUDE_FLAGS}" ${PYTHON_EXECUTABLE} setup.py bdist_wheel -b ${CMAKE_CURRENT_BINARY_DIR}
+                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                   DEPENDS ${BINARY_NAME}-py)
+ 
+diff --git a/src/platform/python/core.c b/src/platform/python/core.c
+index 6d7c1c855..f58c926a7 100644
+--- a/src/platform/python/core.c
++++ b/src/platform/python/core.c
+@@ -8,7 +8,7 @@
+ #include <mgba/core/core.h>
+ 
+ struct mCoreCallbacks* mCorePythonCallbackCreate(void* pyobj) {
+-	struct mCoreCallbacks* callbacks = malloc(sizeof(*callbacks));
++	struct mCoreCallbacks* callbacks = calloc(1, sizeof(*callbacks));
+ 	callbacks->videoFrameStarted = _mCorePythonCallbacksVideoFrameStarted;
+ 	callbacks->videoFrameEnded = _mCorePythonCallbacksVideoFrameEnded;
+ 	callbacks->coreCrashed = _mCorePythonCallbacksCoreCrashed;

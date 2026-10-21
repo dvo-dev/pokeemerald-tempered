@@ -1,0 +1,15 @@
+**
+!.devcontainer/Dockerfile
+!.devcontainer/devcontainer.json
+!.devcontainer/github-auth.sh
+!tools/qa/build_runtime.sh
+!tools/qa/check_abi.py
+!tools/qa/check_headers.py
+!tools/qa/check_image.py
+!tools/qa/requirements.lock
+!tools/qa/qa/mgba-python.patch
+!tools/qa/bin/qa
+!tools/qa/qa/__init__.py
+!tools/qa/qa/artifacts.py
+!tools/qa/qa/errors.py
+!tools/qa/qa/runtime.py

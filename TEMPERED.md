@@ -87,6 +87,22 @@ It has little effect in practice: upstream never counts Explosion as a KO in dou
 
 Changes outside the config headers.
 
+### Agent QA tooling
+
+The [QA terminology reference](tools/qa/README.md#terminology-and-upstream-references)
+explains ABI, DWARF, CFFI, and other terms below, with links to their upstream
+documentation and specifications.
+
+| Configuration | Change | Motivation | Difficulty | Save |
+|---------------|--------|------------|------------|------|
+| `.gitignore` | Ignore `/qa-artifacts/` | Keep isolated QA source/build snapshots and emulator evidence local without deleting them automatically. | No | No |
+| `tools/qa/qa/mgba-python.patch` | Pin and repair the official mGBA Python bindings | Zero-initialize unused callbacks, match the native ABI, and use a private runtime library path without maintaining a separate wrapper or changing game code. | No | No |
+| `.devcontainer/Dockerfile`, `devcontainer.json`, `.dockerignore` | Build a private pinned QA runtime in a separate stage with a narrowly allowlisted context | Provide official mGBA bindings, recording tools, and static ABI/provenance checks without replacing the native test runner, exposing credentials to the build, or requiring nested Docker. | No | No |
+| `tools/qa/requirements.lock`, `pyproject.toml` | Isolate and pin QA Python dependencies | Keep the emulator, image, and DWARF tooling reproducible without installing into system Python. | No | No |
+| `.devcontainer/Dockerfile`, `tools/qa/check_image.py` | Include `libpython3.12t64` defensively and check the private native import in the final stage with core dumps disabled | Cover the embedding runtime's shared-library requirements and fail an incomplete image build early without requiring Dockerfile heredoc support; actual rebuilt-image verification remains a separate gate. | No | No |
+| `tools/qa/pyproject.toml`, `qa/mgba-python.patch`, `.dockerignore` | Ship the unchanged binding patch as package data and allow its new path into the image build context | Let installed-wheel and checkout entry points verify the same runtime provenance without depending on an adjacent source checkout. | No | No |
+| `tools/qa/build_runtime.sh` | Check install-prefix and virtual-environment destinations before any runtime writes | Reject reused destinations without overwriting a previously usable library or its provenance. | No | No |
+
 ### Trainer AI
 
 <details>
