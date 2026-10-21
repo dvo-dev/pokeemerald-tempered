@@ -25,12 +25,13 @@ GitHub Codespaces uses the same configuration without requiring a local Docker i
 
 ## In-game QA runtime
 
-The image builds official mGBA Python bindings at commit
+The image builds the official [mGBA Python bindings](https://github.com/mgba-emu/mgba/tree/fd9dc5c2cbf234365068855851107e762fc6211b/src/platform/python) at commit
 `fd9dc5c2cbf234365068855851107e762fc6211b`, with a small documented build-time
-patch for callback initialization, matching cffi/native definitions, and private
+patch for callback initialization, matching [CFFI](https://cffi.readthedocs.io/en/stable/overview.html)/native definitions, and private
 library resolution. See [patch provenance](tools/qa/patches/README.md).
-Normal FFmpeg support is enabled to avoid additional EReader header patches.
-Qt, SDL, OpenGL, and scripting are disabled. The existing bundled native
+Normal [FFmpeg](https://ffmpeg.org/ffmpeg.html) support is enabled to avoid additional EReader header patches.
+[Qt](https://doc.qt.io/), [SDL](https://wiki.libsdl.org/),
+[OpenGL](https://www.khronos.org/opengl/), and scripting are disabled. The existing bundled native
 `make check` runner is neither replaced nor pointed at this private library.
 The final stage explicitly includes the Python shared runtime and runs
 `tools/qa/check_image.py` with core dumps disabled. It checks the private native
@@ -38,8 +39,10 @@ import, making unresolved shared-library dependencies of the mGBA extension fail
 the image build rather than the first QA run.
 
 Build dependencies stay in a builder stage. The final image contains the
-private `/opt/qa-venv`, `/opt/mgba`, FFmpeg/ffprobe, provenance/static-check logs,
-MPL-2.0 notice and modified binding sources. It does not change global linker
+private [Python virtual environment](https://docs.python.org/3.12/library/venv.html) at `/opt/qa-venv`,
+`/opt/mgba`, FFmpeg/[ffprobe](https://ffmpeg.org/ffprobe.html), provenance/static-check logs,
+[Mozilla Public License 2.0 (MPL-2.0)](https://www.mozilla.org/en-US/MPL/2.0/)
+notice and modified binding sources. It does not change global linker
 configuration, install into system Python, or require Docker/Podman inside the
 container. The build context allowlist excludes ROMs, saves, sessions, credentials,
 and run artifacts.
@@ -55,6 +58,9 @@ predefined regression with `qa run smoke`; it is not operating a live desktop
 emulator. The guide explains [why the runtime, bundles, checkpoints, and RAM
 checks exist](tools/qa/README.md#why-these-constructs-exist) and includes a
 [worked Start-menu check](tools/qa/README.md#worked-example-checking-a-start-menu-change).
+Its [terminology reference](tools/qa/README.md#terminology-and-upstream-references)
+defines terms such as ABI, ELF, DWARF, RTC, and HLE, with links to upstream
+documentation and specifications.
 
 FFmpeg and Python dependencies increase the runtime image footprint; CMake and
 FFmpeg development headers are not copied from the builder. Measure the actual

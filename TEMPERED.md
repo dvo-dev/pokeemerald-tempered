@@ -89,6 +89,10 @@ Changes outside the config headers.
 
 ### Agent QA tooling
 
+The [QA terminology reference](tools/qa/README.md#terminology-and-upstream-references)
+explains ABI, DWARF, CFFI, and other terms below, with links to their upstream
+documentation and specifications.
+
 | Configuration | Change | Motivation | Difficulty | Save |
 |---------------|--------|------------|------------|------|
 | `.gitignore` | Ignore `/qa-artifacts/` | Keep isolated QA source/build snapshots and emulator evidence local without deleting them automatically. | No | No |

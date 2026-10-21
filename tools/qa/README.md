@@ -1,9 +1,12 @@
 # In-game QA
 
-This harness runs official mGBA Python bindings in-process, drives real game
-inputs, and checks RAM-backed assertions. It is separate from `make check` and
+This harness runs the official
+[mGBA Python bindings](https://github.com/mgba-emu/mgba/tree/fd9dc5c2cbf234365068855851107e762fc6211b/src/platform/python)
+in-process, drives real game inputs, and checks RAM-backed assertions. It is separate from `make check` and
 does not change gameplay configuration. Video and screenshots are evidence,
 not pass/fail oracles.
+
+For unfamiliar terms, see [Terminology and upstream references](#terminology-and-upstream-references).
 
 ## How an agent uses the harness
 
@@ -61,18 +64,20 @@ prerequisites for an agent to press buttons and inspect a screenshot.
 
 | Construct | Motivation | Cost or boundary |
 |---|---|---|
-| Pinned private mGBA/Python runtime | Control the core directly without a desktop operator or command server, and keep native dependencies separate from the game test runner. | Binding repairs and ABI checks need maintenance. This harness requires Python; agent playtesting in general does not. See [patch provenance](patches/README.md). |
+| Pinned private mGBA/Python runtime | Control the core directly without a desktop operator or command server, and keep native dependencies separate from the game test runner. | Binding repairs and [ABI](#terminology-and-upstream-references) checks need maintenance. This harness requires Python; agent playtesting in general does not. See [patch provenance](patches/README.md). |
 | Isolated build bundle | Know exactly which sources produced the ROM, symbols, and type information without disturbing the working checkout. | Build the intended snapshot explicitly; existing checkout binaries are not reused. |
-| ELF/DWARF-backed RAM reads | Check actual callbacks, fields, and bitfields without guessing addresses, offsets, or structure padding. | Game-specific predicates still need authoring and can need updates when upstream changes. |
+| [ELF](https://gabi.xinuos.com/elf/index.html)/[DWARF](https://dwarfstd.org/)-backed RAM reads | Check actual callbacks, fields, and bitfields without guessing addresses, offsets, or structure padding. | Game-specific predicates still need authoring and can need updates when upstream changes. |
 | Fresh processes and complete checkpoints | Let the agent stop, inspect, branch, and resume without managing a live emulator service; preserve save/controller/RTC state as well as RAM. | Checkpoints require the matching bundle and runtime. Generate equivalent starting states for each changed build rather than loading an old checkpoint into a new ROM. |
-| Fixed RTC, frame accounting, and input edges | Make timing and replays reproducible, and ensure consecutive button taps are seen as separate presses. | A fixed clock is not statistical coverage; replaying one checkpoint repeats its captured RNG state, not independent trials. |
+| Fixed [RTC](https://mgba-emu.github.io/gbatek/#gbacartrealtimeclockrtc), frame accounting, and input edges | Make timing and replays reproducible, and ensure consecutive button taps are seen as separate presses. | A fixed clock is not statistical coverage; replaying one checkpoint repeats its captured RNG state, not independent trials. |
 | Bounded RAM waits and structured verdicts | Distinguish readiness, behavioral failure, unreachable setup, and broken infrastructure instead of hanging or treating partial execution as a pass. | Only declared assertions establish a behavioral pass. Successful stepping alone does not test an arbitrary feature. |
 | Verified recordings and retained artifacts | Give reviewers visible evidence and enough diagnostics to investigate a result. | Screenshots/video do not replace assertions; binary build/save/checkpoint artifacts remain private. |
 
 ## Prerequisites
 
 Use the rebuilt devcontainer described in [DEVCONTAINER.md](../../DEVCONTAINER.md).
-It provides `qa`, a private `/opt/qa-venv`, FFmpeg/ffprobe, and a pinned mGBA build.
+It provides `qa`, a private [Python virtual environment](https://docs.python.org/3.12/library/venv.html)
+at `/opt/qa-venv`, [FFmpeg](https://ffmpeg.org/ffmpeg.html)/
+[ffprobe](https://ffmpeg.org/ffprobe.html), and a pinned mGBA build.
 The two small downstream binding repairs and their maintenance requirements are
 documented in [patches/README.md](patches/README.md).
 
@@ -99,8 +104,9 @@ qa build --include-dirty
 qa build --include-dirty --include-untracked src/tempered/example.c
 ```
 
-Dirty snapshots are based on the invoking HEAD. They use a separate Git index
-and detached worktree, do not run checkout hooks, and never reset, stage, or
+Dirty snapshots are based on the invoking HEAD. They use a separate
+[Git index](https://git-scm.com/docs/gitglossary) and
+[detached worktree](https://git-scm.com/docs/git-worktree), do not run checkout hooks, and never reset, stage, or
 overwrite the invoking checkout. Unselected untracked files, including ignored
 files, are excluded. The original index, branch, and files remain intact.
 Newly staged files and rename destinations use their current working-tree
@@ -163,7 +169,7 @@ qa step --bundle "$BUNDLE" --state "$RUN_DIR/final.state" \
 
 Each step starts a fresh bounded child process. Multiple `--tap` options execute
 in order; chords use `+`, such as `R+START`. A tap includes at least two pressed
-and two released frames, and requires game KEYINPUT polling plus matching raw
+and two released frames, and requires game [KEYINPUT](https://mgba-emu.github.io/gbatek/#gbakeypadinput) polling plus matching raw
 held-key state. Both emulator and game keys must be released at checkpoints.
 Inputs and all extra polling frames are recorded; there are no silent retries.
 
@@ -314,3 +320,36 @@ assertions such as move choice or HP changes. The controller can supply real
 inputs, but it does not discover those conditions or provide a `qa run battle`
 or `qa sample` command. Keep precise mechanics tests in the existing native
 test suite and use in-game flows for complementary integration evidence.
+
+## Terminology and upstream references
+
+These links point to the relevant standards, project manuals, hardware references,
+or upstream implementation, rather than third-party tutorials. They explain the terminology;
+the pinned version and [patch provenance](patches/README.md) still determine
+which behavior this harness supports.
+GBATEK is Martin Korth's hardware reference; the links use mGBA's hosted copy,
+not Nintendo documentation.
+
+| Term | Meaning here and original reference |
+|---|---|
+| Native mGBA code / Python bindings | mGBA's compiled host-side C code, exposed to Python through its [official bindings](https://github.com/mgba-emu/mgba/tree/fd9dc5c2cbf234365068855851107e762fc6211b/src/platform/python). This does not mean that the game's ARM code executes natively on the host. |
+| CFFI | The Python/C interface used by those bindings. See the [CFFI overview](https://cffi.readthedocs.io/en/stable/overview.html). |
+| ABI (application binary interface) | The binary contract for compiled code, including structure layout and function calls. The native library and bindings must agree. See [GCC's Binary Compatibility explanation](https://gcc.gnu.org/onlinedocs/gcc/Compatibility.html). |
+| ELF (Executable and Linking Format) | The format of the game's `.elf` file and the host's `.so` shared libraries; these files hold compiled code plus symbol/debugging information. See the [ELF specification](https://gabi.xinuos.com/elf/index.html). |
+| DWARF | Debugging information describing names, types, fields, and source locations. The RAM reader uses game DWARF to locate fields; the static ABI gate compares layouts from DWARF in the host libraries. See the [DWARF Debugging Standard](https://dwarfstd.org/). |
+| Debug symbols / `DINFO=1` | Information connecting compiled code to source names and types. `DINFO` is this repository's flag for adding GCC's `-g`, separate from `DEBUG`; see the [Makefile](../../Makefile) and [GCC debugging options](https://gcc.gnu.org/onlinedocs/gcc/Debugging-Options.html). |
+| ROM / RAM | The cartridge program image versus the game's live working memory. See the [GBATEK GBA memory map](https://mgba-emu.github.io/gbatek/#gbamemorymap). |
+| RTC (real-time clock) | The cartridge clock used by the game; the harness fixes its time for repeatable runs. See [GBATEK's RTC documentation](https://mgba-emu.github.io/gbatek/#gbacartrealtimeclockrtc). |
+| BIOS / HLE (high-level emulation) | Console firmware services, implemented by the emulator instead of loading a user-supplied BIOS image. See [GBATEK's BIOS functions](https://mgba-emu.github.io/gbatek/#biosfunctions) and [mGBA's built-in BIOS support](https://github.com/mgba-emu/mgba/blob/fd9dc5c2cbf234365068855851107e762fc6211b/README.md). |
+| KEYINPUT | The GBA keypad register the game reads to detect buttons. See [GBATEK's keypad documentation](https://mgba-emu.github.io/gbatek/#gbakeypadinput). |
+| Virtual environment / `venv` | An isolated set of Python packages, not a separate operating system. See the [Python `venv` manual](https://docs.python.org/3.12/library/venv.html). |
+| Git index / worktree | Git's staging area versus a checked-out working directory. See the [Git glossary](https://git-scm.com/docs/gitglossary) and [worktree manual](https://git-scm.com/docs/git-worktree). |
+| FFmpeg / ffprobe | The tools used to encode video and inspect the result. See the [FFmpeg](https://ffmpeg.org/ffmpeg.html) and [ffprobe](https://ffmpeg.org/ffprobe.html) manuals. |
+| RGBX / `yuv420p` | Pixel layouts, not video codecs. RGBX (FFmpeg input: `rgb0`) has an unused fourth byte; `yuv420p` is the encoded video's pixel layout. See [FFmpeg's pixel-format definitions](https://ffmpeg.org/doxygen/trunk/pixfmt_8h.html). |
+| H.264 / MP4 | The video compression format versus the container holding it. See [FFmpeg's H.264 encoder documentation](https://ffmpeg.org/ffmpeg-codecs.html#libx264_002c-libx264rgb) and [container-format manual](https://ffmpeg.org/ffmpeg-formats.html). |
+| Wheel | An installable Python package archive, distinct from a ROM build bundle. See the [Python wheel specification](https://packaging.python.org/en/latest/specifications/binary-distribution-format/). |
+| SHA-256 | A content fingerprint used to identify files and detect changes, not proof that a test passed. See [NIST's Secure Hash Standard](https://csrc.nist.gov/pubs/fips/180-4/upd1/final). |
+| Build bundle | This harness's frozen ROM/ELF/symbol collection. Its contract is documented in [Build the exact source you intend to test](#build-the-exact-source-you-intend-to-test), not in an external format standard. |
+| Checkpoint | This harness's `.state` archive containing emulator state, save bytes, and metadata. See [What a `.state` file contains](#what-a-state-file-contains); it is not a desktop mGBA state file. |
+| Oracle / readiness predicate | A declared game-state check, such as "the menu can accept input." See [How an agent uses the harness](#how-an-agent-uses-the-harness) for our implementation and its frame deadline. |
+| Manifest / provenance | The recorded inputs, identities, observations, and origin of a run or build. These are harness-specific records; see [Run and inspect](#run-and-inspect). |
