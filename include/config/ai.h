@@ -15,7 +15,7 @@
 #define SHOULD_SWITCH_ABSORBS_MOVE_PERCENTAGE                       100
 #define SHOULD_SWITCH_ABSORBS_HIDDEN_POWER_PERCENTAGE               50
 #define SHOULD_SWITCH_TRAPPER_PERCENTAGE                            100
-#define SHOULD_SWITCH_FREE_TURN_PERCENTAGE                          50
+#define SHOULD_SWITCH_FREE_TURN_PERCENTAGE                          66 // [tempered] upstream: 50.
 #define STAY_IN_ABSORBING_PERCENTAGE                                66  // Chance to stay in if outgoing mon has super effective move against player, will prevent switching out for an absorber with this likelihood
 #define SHOULD_SWITCH_HASBADODDS_PERCENTAGE                         50
 #define SHOULD_SWITCH_ENCORE_STATUS_PERCENTAGE                      100
@@ -30,9 +30,9 @@
 // AI smart switching chances for bad statuses
 #define SHOULD_SWITCH_PERISH_SONG_PERCENTAGE                    100
 #define SHOULD_SWITCH_YAWN_PERCENTAGE                           100
-#define SHOULD_SWITCH_BADLY_POISONED_PERCENTAGE                 50
+#define SHOULD_SWITCH_BADLY_POISONED_PERCENTAGE                 66 // [tempered] upstream: 50.
 #define SHOULD_SWITCH_BADLY_POISONED_STATS_RAISED_PERCENTAGE    20
-#define SHOULD_SWITCH_CURSED_PERCENTAGE                         50
+#define SHOULD_SWITCH_CURSED_PERCENTAGE                         66 // [tempered] upstream: 50.
 #define SHOULD_SWITCH_CURSED_STATS_RAISED_PERCENTAGE            20
 #define SHOULD_SWITCH_NIGHTMARE_PERCENTAGE                      33
 #define SHOULD_SWITCH_NIGHTMARE_STATS_RAISED_PERCENTAGE         15
@@ -47,7 +47,7 @@
 #define SHOULD_SWITCH_NATURAL_CURE_WEAK_STATS_RAISED_PERCENTAGE     10
 #define SHOULD_SWITCH_REGENERATOR_PERCENTAGE                        50
 #define SHOULD_SWITCH_REGENERATOR_STATS_RAISED_PERCENTAGE           20
-#define SHOULD_SWITCH_INTIMIDATE_PERCENTAGE                         25
+#define SHOULD_SWITCH_INTIMIDATE_PERCENTAGE                         33 // [tempered] upstream: 25.
 #define SHOULD_SWITCH_INTIMIDATE_STATS_RAISED_PERCENTAGE            10
 #define SHOULD_SWITCH_WISH_PASSING_PERCENTAGE                       50
 
@@ -69,12 +69,12 @@
 // AI move scoring
 #define STATUS_MOVE_FOCUS_PUNCH_CHANCE                          50 // Chance the AI will use a status move if the player's best move is Focus Punch
 #define BOOST_INTO_HAZE_CHANCE                                  0 // Chance the AI will use a stat boosting move if the player has used Haze
-#define SHOULD_RECOVER_CHANCE                                   50 // Chance the AI will give recovery moves score increase if less than ENABLE_RECOVERY_THRESHOLD and in no immediate danger
+#define SHOULD_RECOVER_CHANCE                                   100 // [tempered] upstream: 50. Chance the AI will give recovery moves score increase if less than ENABLE_RECOVERY_THRESHOLD and in no immediate danger
 #define ENABLE_RECOVERY_THRESHOLD                               60 // HP percentage beneath which SHOULD_RECOVER_CHANCE is active
 #define SUCKER_PUNCH_CHANCE                                     50 // Chance for the AI to not use Sucker Punch if the player has a status move
 #define SUCKER_PUNCH_PREDICTION_CHANCE                          50 // Additional chance for the AI to not use Sucker Punch if actively predicting a status move if SUCKER_PUNCH_CHANCE fails
-#define PRIORITIZE_LAST_CHANCE_CHANCE                           50 // Chance the AI will prioritize Last Chance (priority move in the face of being outsped and KO'd) over Slow KO
-#define LAST_MON_PREFERS_NOT_SACRIFICE                          FALSE // Whether the AI will be hesitant to use self-sacrificing moves (Explosion, Final Gambit) with their last mon
+#define PRIORITIZE_LAST_CHANCE_CHANCE                           100 // [tempered] upstream: 50. Chance the AI will prioritize Last Chance (priority move in the face of being outsped and KO'd) over Slow KO
+#define LAST_MON_PREFERS_NOT_SACRIFICE                          TRUE // [tempered] upstream: FALSE. Whether the AI will be hesitant to use self-sacrificing moves (Explosion, Final Gambit) with their last mon
 #define EXPLOSION_LOWER_HP_THRESHOLD                            10 // HP percentage at or beneath which the AI has a 90% chance to explode; otherwise scales between this and higher threshold
 #define EXPLOSION_HIGHER_HP_THRESHOLD                           90 // HP percentage at or above which the AI has a 0% chance to explode; otherwise scales between this and lower threshold
 #define EXPLOSION_MINIMUM_CHANCE                                0 // Lowest possible percent chance of the AI using explosion based on its current HP
