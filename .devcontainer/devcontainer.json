@@ -10,7 +10,7 @@
   },
   "runArgs": ["--platform=linux/amd64"],
   "remoteUser": "vscode",
-  "postCreateCommand": "sudo mkdir -p ${containerWorkspaceFolder}.worktrees && sudo chown vscode:vscode ${containerWorkspaceFolder}.worktrees && make -B -j$(nproc) tools check-tools",
+  "postCreateCommand": "sudo mkdir -p \"${containerWorkspaceFolder}.worktrees\" && sudo chown vscode:vscode \"${containerWorkspaceFolder}.worktrees\" && make -B -j$(nproc) tools check-tools",
   "customizations": {
     "vscode": {
       "extensions": [
