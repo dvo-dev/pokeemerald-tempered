@@ -148,7 +148,8 @@ def read_checkpoint(
                         or hashlib.sha256(value).hexdigest() != record["sha256"]):
                     raise QAError(f"Checkpoint integrity mismatch: {name}")
                 values[name] = value
-    except (OSError, UnicodeError, json.JSONDecodeError, zipfile.BadZipFile) as error:
+    except (OSError, UnicodeError, json.JSONDecodeError,
+            zipfile.BadZipFile, NotImplementedError, EOFError) as error:
         raise QAError(f"Cannot read checkpoint {path}: {error}") from error
     return Checkpoint(
         values["core.state"], values["save.bin"], manifest,

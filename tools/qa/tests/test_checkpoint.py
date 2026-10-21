@@ -3,6 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 import zipfile
+from unittest.mock import patch
 
 from tools.qa.qa import checkpoint
 from tools.qa.qa.errors import QAError, UsageError
@@ -178,6 +179,22 @@ class CheckpointTests(unittest.TestCase):
         (self.root / "test.state").write_bytes(b"not a zip archive")
         with self.assertRaisesRegex(QAError, "Cannot read checkpoint"):
             self.read()
+
+    def test_unsupported_zip_extraction_version_is_infrastructure_error(self):
+        entry = zipfile.ZipInfo("core.state")
+        entry.extract_version = 100
+        with zipfile.ZipFile(self.root / "test.state", "w") as archive:
+            archive.writestr(entry, b"unsupported")
+        with self.assertRaisesRegex(QAError, "Cannot read checkpoint") as raised:
+            self.read()
+        self.assertEqual(raised.exception.exit_code, 3)
+
+    def test_zip_reader_eof_is_also_an_infrastructure_error(self):
+        (self.root / "test.state").write_bytes(b"fixture")
+        with patch.object(checkpoint.zipfile, "ZipFile", side_effect=EOFError("truncated member")):
+            with self.assertRaisesRegex(QAError, "truncated member") as raised:
+                self.read()
+        self.assertEqual(raised.exception.exit_code, 3)
 
 
 if __name__ == "__main__":

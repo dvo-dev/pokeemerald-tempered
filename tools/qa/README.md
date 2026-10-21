@@ -283,6 +283,11 @@ line-buffered native output, and callback-exception checks. Do not install the
 upstream Python logger at this pin: its opaque `va_list` path is unsupported.
 The harness captures the native C logger verbatim instead. Stop on a native
 crash, preserve diagnostics, and investigate; do not run a crash retry loop.
+During supervision, SIGINT, SIGTERM, and SIGHUP request cancellation. The parent
+stops its worker/encoder process group and records a non-publishable exit-3
+result, including the parent signal and the worker's original result fields.
+Previous signal handlers are restored afterward. Uncatchable termination such
+as SIGKILL or an OOM kill is not covered by this signal handling.
 
 The deliberate control flows `negative-wrong-callback`, `negative-unreachable`,
 and `negative-unknown-symbol` are expected to exit 1, 2, and 3 respectively.

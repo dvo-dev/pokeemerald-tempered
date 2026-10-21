@@ -14,6 +14,25 @@ python="$(realpath -ms "$4")"
 pin=fd9dc5c2cbf234365068855851107e762fc6211b
 patch="$qa_dir/qa/mgba-python.patch"
 
+package="$("$python" -B - "$prefix" <<'PY'
+from pathlib import Path
+import sys
+import sysconfig
+
+try:
+    prefix = Path(sys.argv[1])
+    if prefix.exists() and (not prefix.is_dir() or any(prefix.iterdir())):
+        raise ValueError(f"Install prefix must be absent or empty: {prefix}")
+    package = Path(sysconfig.get_path("purelib")) / "mgba"
+    if package.exists() or package.is_symlink():
+        raise ValueError(f"Refusing to replace an existing mGBA Python package: {package}")
+except (OSError, ValueError) as error:
+    print(f"Runtime destination check failed: {error}", file=sys.stderr)
+    raise SystemExit(3)
+print(package)
+PY
+)"
+
 if [[ "$(git -C "$source_dir" rev-parse HEAD)" != "$pin" ]]; then
     printf 'mGBA source is not at the recorded pin\n' >&2
     exit 3
@@ -57,16 +76,15 @@ cmake --build "$build_dir" --parallel "$(nproc)" \
     2>&1 | tee "$prefix/share/qa/build.log"
 cmake --install "$build_dir" 2>&1 | tee "$prefix/share/qa/install.log"
 
-package="$("$python" - "$build_dir" <<'PY'
+package="$("$python" - "$build_dir" "$package" <<'PY'
 from pathlib import Path
 import shutil
 import sys
-import sysconfig
 packages = list((Path(sys.argv[1]) / "python").glob("lib.*/mgba"))
 if len(packages) != 1:
     raise SystemExit("Expected one built mGBA Python package")
-destination = Path(sysconfig.get_path("purelib")) / "mgba"
-if destination.exists():
+destination = Path(sys.argv[2])
+if destination.exists() or destination.is_symlink():
     raise SystemExit("Refusing to replace an existing mGBA Python package")
 shutil.copytree(packages[0], destination)
 print(destination)

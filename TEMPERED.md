@@ -101,6 +101,7 @@ documentation and specifications.
 | `tools/qa/requirements.lock`, `pyproject.toml` | Isolate and pin QA Python dependencies | Keep the emulator, image, and DWARF tooling reproducible without installing into system Python. | No | No |
 | `.devcontainer/Dockerfile`, `tools/qa/check_image.py` | Include `libpython3.12t64` defensively and check the private native import in the final stage with core dumps disabled | Cover the embedding runtime's shared-library requirements and fail an incomplete image build early without requiring Dockerfile heredoc support; actual rebuilt-image verification remains a separate gate. | No | No |
 | `tools/qa/pyproject.toml`, `qa/mgba-python.patch`, `.dockerignore` | Ship the unchanged binding patch as package data and allow its new path into the image build context | Let installed-wheel and checkout entry points verify the same runtime provenance without depending on an adjacent source checkout. | No | No |
+| `tools/qa/build_runtime.sh` | Check install-prefix and virtual-environment destinations before any runtime writes | Reject reused destinations without overwriting a previously usable library or its provenance. | No | No |
 
 ### Trainer AI
 

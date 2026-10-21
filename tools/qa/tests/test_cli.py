@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
+import zipfile
 from unittest.mock import Mock, call, patch
 
 from tools.qa.qa import cli
@@ -117,6 +118,32 @@ class CliTests(unittest.TestCase):
                             with self.assertRaises(UsageError):
                                 cli.launch(args, repo)
                             process.assert_not_called()
+            self.assertFalse((repo / "qa-artifacts").exists())
+
+    def test_unsupported_zip_version_returns_three_without_starting_worker(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            state = repo / "unsupported.state"
+            entry = zipfile.ZipInfo("core.state")
+            entry.extract_version = 100
+            with zipfile.ZipFile(state, "w") as archive:
+                archive.writestr(entry, b"unsupported")
+            bundle = SimpleNamespace(bundle_id="a" * 64, path=repo / "bundle")
+            with (
+                patch.object(cli.Bundle, "load", return_value=bundle),
+                patch.object(cli, "load_runtime", return_value=SimpleNamespace(identity={})),
+                patch.object(cli, "git", return_value=SimpleNamespace(stdout=str(repo).encode())),
+                patch.object(cli.subprocess, "Popen") as process,
+                redirect_stderr(io.StringIO()) as error,
+            ):
+                code = cli.main([
+                    "step", "--bundle", str(bundle.path), "--state", str(state),
+                    "--out", str(repo / "qa-artifacts/next.state"),
+                ])
+            self.assertEqual(code, 3)
+            self.assertIn("Cannot read checkpoint", error.getvalue())
+            self.assertNotIn("Traceback", error.getvalue())
+            process.assert_not_called()
             self.assertFalse((repo / "qa-artifacts").exists())
 
 

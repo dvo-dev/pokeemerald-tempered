@@ -72,10 +72,12 @@ def selected_untracked(repo: Path, names: tuple[str, ...]) -> list[str]:
             if current.is_symlink():
                 raise UsageError(f"Symlinked untracked source is not supported: {name}")
         path = relative.as_posix()
+        # check-ignore consumes filenames and rejects literal pathspec magic.
         ignored = git(repo, "check-ignore", "--quiet", "--", path, allowed=(0, 1))
         if ignored.returncode == 0:
             raise UsageError(f"Ignored files cannot enter a source snapshot: {name}")
-        tracked = git(repo, "ls-files", "--error-unmatch", "--", path, allowed=(0, 1))
+        tracked = git(repo, "--literal-pathspecs", "ls-files", "--error-unmatch", "--",
+                      path, allowed=(0, 1))
         if tracked.returncode == 0:
             raise UsageError(f"--include-untracked names a tracked file: {name}")
         selected.append(path)

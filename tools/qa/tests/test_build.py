@@ -182,6 +182,23 @@ class BuildTests(unittest.TestCase):
         )
         self.assertNotEqual(first["source_tree"], second["source_tree"])
 
+    def test_untracked_pathspec_collision_uses_the_literal_filename(self):
+        (self.repo / "new1.c").write_text("tracked file")
+        self.git("add", "new1.c")
+        (self.repo / "new[1].c").write_text("selected untracked file")
+        (self.repo / "other.c").write_text("unselected")
+        index = (self.repo / ".git/index").read_bytes()
+        directory = self.directory()
+        build.capture_source(
+            self.repo, directory, include_dirty=True, untracked=("new[1].c",)
+        )
+        self.assertEqual(
+            (directory / "source/new[1].c").read_text(), "selected untracked file"
+        )
+        self.assertEqual((directory / "source/new1.c").read_text(), "tracked file")
+        self.assertFalse((directory / "source/other.c").exists())
+        self.assertEqual((self.repo / ".git/index").read_bytes(), index)
+
     def test_dirty_default_requires_explicit_choice(self):
         (self.repo / "data.txt").write_text("working")
         with self.assertRaisesRegex(UsageError, "Source tree is dirty"):

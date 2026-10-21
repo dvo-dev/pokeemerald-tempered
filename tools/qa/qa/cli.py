@@ -7,6 +7,7 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import time
 import uuid
 
 from .artifacts import content_id, read_json, write_json
@@ -148,6 +149,12 @@ def launch(args, repo: Path) -> int:
     if args.command == "step" and args.wait == 0 and not taps:
         raise UsageError("A step must advance a real frame before capturing post-load evidence")
     requested_epoch = epoch(args.epoch) if args.epoch is not None else None
+    previous_handlers = {
+        number: signal.getsignal(number)
+        for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+    }
+    if any(handler is None for handler in previous_handlers.values()):
+        raise QAError("Cannot safely restore externally installed signal handlers")
     state = None
     state_hash = None
     if args.command == "step":
@@ -210,34 +217,62 @@ def launch(args, repo: Path) -> int:
     log_path = directory / "native.log"
     timed_out = False
     cancelled = False
-    with log_path.open("xb") as log:
-        process = subprocess.Popen(
-            command, cwd=repo, env=env, stdout=log, stderr=subprocess.STDOUT,
-            start_new_session=True,
-        )
+    parent_signal = None
+    process = None
+    code = 3
+    surviving_children = False
+    def request_cancel(number, _frame):
+        nonlocal parent_signal
+        if parent_signal is None:
+            parent_signal = number
+
+    try:
+        for number in previous_handlers:
+            signal.signal(number, request_cancel)
+        with log_path.open("xb") as log:
+            if parent_signal is None:
+                process = subprocess.Popen(
+                    command, cwd=repo, env=env, stdout=log, stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                )
+                deadline = time.monotonic() + args.timeout_seconds
+                try:
+                    while parent_signal is None:
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            timed_out = True
+                            break
+                        try:
+                            code = process.wait(timeout=min(0.1, remaining))
+                            break
+                        except subprocess.TimeoutExpired:
+                            continue
+                except KeyboardInterrupt:
+                    cancelled = True
+    finally:
         try:
-            code = process.wait(timeout=args.timeout_seconds)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            stop_group(process)
-            code = 3
-        except KeyboardInterrupt:
-            cancelled = True
-            stop_group(process)
-            code = 3
-    surviving_children = stop_group(process)
+            if process is not None:
+                worker_finished = process.returncode is not None
+                group_existed = stop_group(process)
+                surviving_children = worker_finished and group_existed
+        finally:
+            for number, handler in previous_handlers.items():
+                signal.signal(number, handler)
+    cancelled = cancelled or parent_signal is not None
     manifest = read_json(directory / "manifest.json")
     broken = (timed_out or cancelled or surviving_children or code not in (0, 1, 2, 3, 64)
               or manifest.get("exit_code") != code
               or manifest.get("status") not in ("complete", "error")
               or callback_error(log_path))
     if broken:
-        stop_group(process)
         manifest.update({
             "status": "error", "exit_code": 3, "verdict": "error", "publishable": False,
-            "worker_exit_code": code, "worker_timeout": timed_out,
+            "worker_exit_code": process.returncode if process is not None else None,
+            "worker_manifest_exit_code": manifest.get("exit_code"),
+            "worker_verdict": manifest.get("verdict"),
+            "parent_signal": parent_signal, "worker_timeout": timed_out,
             "worker_cancelled": cancelled, "unexpected_child_processes": surviving_children,
-            "error": "Worker failed or logged a callback exception; inspect native.log",
+            "error": "Worker failed, was cancelled, or logged a callback exception; inspect native.log",
         })
         write_json(directory / "manifest.json", manifest, replace=True)
         code = 3

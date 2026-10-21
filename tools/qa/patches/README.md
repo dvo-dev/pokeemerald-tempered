@@ -22,6 +22,11 @@ Normal [FFmpeg](https://ffmpeg.org/ffmpeg.html) support must be enabled. This ma
 available without patching their headers or duplicating their structure layouts.
 Qt, SDL, OpenGL, and scripting are not required.
 
+The bootstrap requires an absent or empty install prefix and a virtual
+environment without an existing `mgba` package. It checks both destinations
+before patching source or writing provenance/library files, so a rejected
+rebuild does not damage an already installed runtime.
+
 Apply only to a clean checkout of the exact pin. Check applicability before
 applying, and fail rather than silently dropping a patch:
 

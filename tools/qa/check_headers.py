@@ -12,10 +12,14 @@ import sys
 
 
 def assignment(text: str, key: str) -> str:
-    match = re.search(r"^" + re.escape(key) + r"\s*=\s*(.*)$", text, re.MULTILINE)
-    if match is None:
+    matches = re.findall(
+        r"^" + re.escape(key) + r"[ \t]*=[ \t]*(.*)$", text, re.MULTILINE
+    )
+    if not matches:
         raise ValueError(f"Missing build assignment: {key}")
-    return match.group(1)
+    if len(matches) != 1:
+        raise ValueError(f"Ambiguous build assignment: {key}")
+    return matches[0]
 
 
 def python_flags(text: str) -> list[str]:
