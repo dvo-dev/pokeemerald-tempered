@@ -5,6 +5,70 @@ inputs, and checks RAM-backed assertions. It is separate from `make check` and
 does not change gameplay configuration. Video and screenshots are evidence,
 not pass/fail oracles.
 
+## How an agent uses the harness
+
+The harness is an emulator controller plus a regression-test foundation, not an
+autonomous player. The agent decides what to try and how to interpret the
+results. It can use either of these modes without changing the backend:
+
+- **Agent-guided exploration:** issue `qa step`, inspect its observations and
+  screenshots, then choose the next bounded action. A new Python flow is not
+  required for every route or interaction.
+- **Scripted regression:** run an implemented flow such as `qa run smoke`.
+  Python performs the actions and evaluates predefined assertions without
+  asking the agent to decide after every action.
+
+The agent-guided loop is:
+
+```text
+Agent chooses inputs and a frame budget
+    |
+    v
+qa step: verify checkpoint -> restore -> input/advance -> capture/save
+    |
+    +-- failure -> retain diagnostics; inspect the error before proceeding
+    |
+    `-- success [outputs]: next checkpoint, RAM observations, PNG/MP4
+                              |
+                              v
+                       Agent inspects results
+                              |
+                              +-- goal observed -> report evidence and limits
+                              `-- more needed -> choose the next bounded step
+```
+
+This is frame-stepped, not wall-clock play. `--wait 30` advances 30 emulated
+frames after the taps; it does not hold a key or sleep for 30 seconds. Taps also
+advance their own press/release frames. Execution speed depends on the host and
+recording overhead; videos play back at real game speed. Between commands there
+is no running emulator session: the checkpoint preserves the game while the
+agent reasons.
+
+An *oracle* is an explicit game-state check, not a special marker inserted into
+the game. In a scripted flow, `Session.wait_until` advances one frame and checks
+a RAM predicate until it holds for two consecutive frames by default, or a
+declared frame deadline expires. For example, menu readiness checks its task,
+initialization state, input handler, and palette fade. This loop runs inside
+Python, not through one model call per frame. `qa step --wait N` instead advances
+a fixed number of frames; it does not accept an arbitrary readiness predicate.
+See the [session implementation](qa/emu.py), [CLI](qa/cli.py), and implemented
+[smoke predicates and flow](qa/flows/smoke.py).
+
+## Why these constructs exist
+
+These guarantees support unattended, reproducible checks; they are not all
+prerequisites for an agent to press buttons and inspect a screenshot.
+
+| Construct | Motivation | Cost or boundary |
+|---|---|---|
+| Pinned private mGBA/Python runtime | Control the core directly without a desktop operator or command server, and keep native dependencies separate from the game test runner. | Binding repairs and ABI checks need maintenance. This harness requires Python; agent playtesting in general does not. See [patch provenance](patches/README.md). |
+| Isolated build bundle | Know exactly which sources produced the ROM, symbols, and type information without disturbing the working checkout. | Build the intended snapshot explicitly; existing checkout binaries are not reused. |
+| ELF/DWARF-backed RAM reads | Check actual callbacks, fields, and bitfields without guessing addresses, offsets, or structure padding. | Game-specific predicates still need authoring and can need updates when upstream changes. |
+| Fresh processes and complete checkpoints | Let the agent stop, inspect, branch, and resume without managing a live emulator service; preserve save/controller/RTC state as well as RAM. | Checkpoints require the matching bundle and runtime. Generate equivalent starting states for each changed build rather than loading an old checkpoint into a new ROM. |
+| Fixed RTC, frame accounting, and input edges | Make timing and replays reproducible, and ensure consecutive button taps are seen as separate presses. | A fixed clock is not statistical coverage; replaying one checkpoint repeats its captured RNG state, not independent trials. |
+| Bounded RAM waits and structured verdicts | Distinguish readiness, behavioral failure, unreachable setup, and broken infrastructure instead of hanging or treating partial execution as a pass. | Only declared assertions establish a behavioral pass. Successful stepping alone does not test an arbitrary feature. |
+| Verified recordings and retained artifacts | Give reviewers visible evidence and enough diagnostics to investigate a result. | Screenshots/video do not replace assertions; binary build/save/checkpoint artifacts remain private. |
+
 ## Prerequisites
 
 Use the rebuilt devcontainer described in [DEVCONTAINER.md](../../DEVCONTAINER.md).
@@ -108,6 +172,64 @@ Step case observations also include raw menu/field control inputs and interprete
 readiness flags, so a follow-up flow can assert the intended UI transition rather
 than treating deterministic stepping alone as behavioral proof.
 
+### Worked example: checking a Start-menu change
+
+Suppose a change should preserve opening the Start menu and returning control
+to the field. This example uses today's implemented commands, not a proposed
+battle API. Run from the repository root after completing the prerequisites.
+
+First build the intended source snapshot using the build section above and set
+`BUNDLE` to the returned `bundle` path. Run
+`qa run smoke --bundle "$BUNDLE"` and set `RUN_DIR` to the successful smoke run's
+`run_dir`. Stop if the build or smoke run fails; inspect the returned manifest
+rather than assuming a checkpoint exists.
+
+The smoke flow already asserts menu opening and closing automatically. The
+following extra steps demonstrate how an agent explores from its final
+controllable-truck checkpoint without writing another Python flow.
+
+Create a fresh output directory because evidence files are never overwritten:
+
+```sh
+STEP_DIR=$(mktemp -d qa-artifacts/menu-example.XXXXXX)
+qa step --bundle "$BUNDLE" --state "$RUN_DIR/final.state" \
+  --tap START --wait 30 \
+  --out "$STEP_DIR/menu.state" --shot "$STEP_DIR/menu.png"
+```
+
+The step returns a `manifest` path and writes native-size `menu.png` and
+enlarged `menu@4x.png` in `STEP_DIR`.
+For this build and starting point, `cases[0].game.ready.menu` should be `true`,
+`cases[0].game.palette_fade_active` should be `0`, and
+`cases[0].observed.keys` and `cases[0].observed.game_keys_raw` should be `0`.
+The screenshot should show the open menu. Checking these observations is a
+separate decision: a step can exit 0 even when the intended menu transition
+did not occur.
+
+Only after confirming that result, continue from the new checkpoint:
+
+```sh
+qa step --bundle "$BUNDLE" --state "$STEP_DIR/menu.state" \
+  --tap B --wait 5 \
+  --out "$STEP_DIR/field.state" --shot "$STEP_DIR/field.png"
+```
+
+The second step produces another manifest, `field.png`, and `field@4x.png`.
+The observations and screenshots should show the menu closed, with
+`cases[0].game.ready.field` equal to `true`,
+`cases[0].game.ready.menu` equal to `false`, and both observed key fields equal
+to `0`.
+The current `ready.field` predicate specifically means controllable field state
+**inside the truck**; it is not a general overworld or battle-readiness check.
+An unexpected observation warrants diagnosis, not blindly sending more inputs.
+
+A useful result includes the source bundle, both steps' manifest paths,
+observations, and relevant PNG/MP4 evidence. This example supplies menu evidence,
+not battle coverage or rebuilt-image verification. Turning a newly explored
+route into a reusable regression means encoding its preconditions, actions,
+assertions, and frame deadlines in a flow instead of relying on repeated
+agent interpretation.
+
 ### What a `.state` file contains
 
 It is a bounded, uncompressed ZIP, not a desktop-emulator `.sgm` file:
@@ -181,3 +303,9 @@ archives are private and must not be committed or attached to a PR.
 
 AI battle scenarios, sampling/statistics, audio recording, visual/feel judgments,
 and a real-time human viewer are outside this first implementation.
+Battle regression coverage would additionally need reproducible encounter/party
+setup, battle-specific readiness and turn-result predicates, and explicit
+assertions such as move choice or HP changes. The controller can supply real
+inputs, but it does not discover those conditions or provide a `qa run battle`
+or `qa sample` command. Keep precise mechanics tests in the existing native
+test suite and use in-game flows for complementary integration evidence.

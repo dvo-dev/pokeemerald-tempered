@@ -46,6 +46,12 @@ stateless checkpoint stepping, recording, failure interpretation, and publicatio
 boundaries. Run evidence identifies `image` versus `ad-hoc` runtime provenance;
 an ad-hoc build does not prove the final image works.
 
+The agent can explore with checkpoint-based `qa step` commands or execute a
+predefined regression with `qa run smoke`; it is not operating a live desktop
+emulator. The guide explains [why the runtime, bundles, checkpoints, and RAM
+checks exist](tools/qa/README.md#why-these-constructs-exist) and includes a
+[worked Start-menu check](tools/qa/README.md#worked-example-checking-a-start-menu-change).
+
 FFmpeg and Python dependencies increase the runtime image footprint; CMake and
 FFmpeg development headers are not copied from the builder. Measure the actual
 rebuilt image size/build output on the Docker host rather than inferring it from
