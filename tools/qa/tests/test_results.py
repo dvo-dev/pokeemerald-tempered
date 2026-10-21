@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from tools.qa.qa.errors import BehaviorFailure, PreconditionFailure, QAError, UsageError
 from tools.qa.qa.results import Run, aggregate
@@ -91,3 +92,37 @@ class ResultsTests(unittest.TestCase):
         with self.assertRaisesRegex(QAError, "already executed"):
             with self.run.case("first"):
                 pass
+
+    def test_io_error_is_recorded_on_case_and_cannot_be_reentered(self):
+        error = OSError("checkpoint write failed")
+        with self.assertRaises(OSError) as raised:
+            with self.run.case("first"):
+                raise error
+        self.assertIs(raised.exception, error)
+        manifest = json.loads((self.run.directory / "manifest.json").read_text())
+        self.assertEqual(manifest["cases"][0]["status"], "error")
+        self.assertEqual(manifest["cases"][0]["error"], str(error))
+        self.assertEqual(manifest["cases"][0]["end_frame"], 0)
+        self.assertEqual(manifest["cases"][1]["status"], "not-run")
+        with self.assertRaisesRegex(QAError, "already executed"):
+            with self.run.case("first"):
+                self.fail("An errored case must not be reentered")
+        self.assertEqual(self.run.finish(media={"verified": True}), 3)
+        self.assertFalse(self.run.manifest["publishable"])
+
+    def test_ordinary_programming_error_preserves_original_exception(self):
+        error = ValueError("invalid observation")
+        with self.assertRaises(ValueError) as raised:
+            with self.run.case("first"):
+                raise error
+        self.assertIs(raised.exception, error)
+        self.assertEqual(self.run.manifest["cases"][0]["status"], "error")
+        self.assertEqual(self.run.manifest["cases"][0]["error"], str(error))
+
+    def test_case_start_log_failure_is_also_a_case_error(self):
+        with patch.object(self.run, "event", side_effect=OSError("event write failed")):
+            with self.assertRaisesRegex(OSError, "event write failed"):
+                with self.run.case("first"):
+                    self.fail("Case body must not execute after its start event fails")
+        self.assertEqual(self.run.manifest["cases"][0]["status"], "error")
+        self.assertEqual(self.run.manifest["cases"][1]["status"], "not-run")

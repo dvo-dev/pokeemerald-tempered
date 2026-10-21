@@ -44,11 +44,14 @@ RUN python3 -m venv /opt/qa-venv \
 FROM base AS devcontainer
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg python3-venv libffi8 \
+    && apt-get install -y --no-install-recommends \
+        ffmpeg python3-venv libffi8 libpython3.12t64 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=qa-builder /opt/qa-venv /opt/qa-venv
 COPY --from=qa-builder /opt/mgba /opt/mgba
 COPY tools/qa/bin/qa /usr/local/bin/qa
+COPY tools/qa/check_image.py /opt/mgba/share/qa/check_image.py
 
-RUN chmod 755 /usr/local/bin/qa
+RUN /opt/qa-venv/bin/python -I -B /opt/mgba/share/qa/check_image.py \
+    && chmod 755 /usr/local/bin/qa

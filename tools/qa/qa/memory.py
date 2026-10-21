@@ -155,11 +155,16 @@ class Symbols:
                 if top_name == "<stdin>" and program:
                     for entry in program.header["file_entry"]:
                         if entry.name.endswith(b".c"):
-                            directory = ""
-                            if entry.dir_index:
-                                directory = program.header["include_directory"][
-                                    entry.dir_index - 1
-                                ].decode()
+                            directory = attribute(
+                                unit.get_top_DIE(), "DW_AT_comp_dir", b""
+                            ).decode()
+                            base = 0 if program.header["version"] >= 5 else 1
+                            if base == 0 or entry.dir_index:
+                                index = entry.dir_index - base
+                                directories = program.header["include_directory"]
+                                if not 0 <= index < len(directories):
+                                    raise QAError("Invalid DWARF source directory index")
+                                directory = directories[index].decode()
                             source = str(Path(directory) / entry.name.decode())
                             break
                 self.units.append((source, unit))

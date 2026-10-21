@@ -92,7 +92,7 @@ explicitly when necessary:
 # Committed code only, excluding local edits:
 qa build --ref HEAD
 
-# Include tracked working-tree edits and deletions:
+# Include tracked working-tree changes, including staged additions/renames:
 qa build --include-dirty
 
 # Also include individually selected untracked source files:
@@ -101,8 +101,12 @@ qa build --include-dirty --include-untracked src/tempered/example.c
 
 Dirty snapshots are based on the invoking HEAD. They use a separate Git index
 and detached worktree, do not run checkout hooks, and never reset, stage, or
-overwrite the invoking checkout. Unselected untracked and ignored files are
-excluded. The original index, branch, and files remain intact.
+overwrite the invoking checkout. Unselected untracked files, including ignored
+files, are excluded. The original index, branch, and files remain intact.
+Newly staged files and rename destinations use their current working-tree
+contents, just like modifications to existing tracked files. Files removed from
+the invoking index stay excluded even if their working copies remain on disk,
+unless explicitly selected with `--include-untracked`.
 
 Each build emits JSON containing a `bundle` directory path and a separate
 content-based `bundle_id`. Use the **path**, not the hash, below. The bundle
@@ -219,8 +223,9 @@ The observations and screenshots should show the menu closed, with
 `cases[0].game.ready.field` equal to `true`,
 `cases[0].game.ready.menu` equal to `false`, and both observed key fields equal
 to `0`.
-The current `ready.field` predicate specifically means controllable field state
-**inside the truck**; it is not a general overworld or battle-readiness check.
+The `ready.field` predicate means general overworld field control, not battle
+readiness. The smoke flow additionally checks that the map is the opening truck;
+other steps can report field readiness on other maps.
 An unexpected observation warrants diagnosis, not blindly sending more inputs.
 
 A useful result includes the source bundle, both steps' manifest paths,

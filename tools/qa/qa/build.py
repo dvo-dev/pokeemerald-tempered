@@ -120,9 +120,28 @@ def capture_source(repo: Path, directory: Path, *, ref: str | None = None,
     commit = base
     tree = git(repo, "rev-parse", f"{base}^{{tree}}").stdout.decode().strip()
     if include_dirty:
-        environment = {"GIT_INDEX_FILE": str(directory / "source.index")}
+        added = [
+            os.fsdecode(name) for name in git(
+                repo, "diff", "--name-only", "--no-renames", "--diff-filter=A", "-z",
+                "HEAD", "--",
+            ).stdout.split(b"\0") if name
+        ]
+        removed = [
+            os.fsdecode(name) for name in git(
+                repo, "diff", "--name-only", "--no-renames", "--diff-filter=D", "-z",
+                "HEAD", "--",
+            ).stdout.split(b"\0") if name
+        ]
+        environment = {
+            "GIT_INDEX_FILE": str(directory / "source.index"),
+            "GIT_LITERAL_PATHSPECS": "1",
+        }
         git(repo, "read-tree", base, env=environment)
         git(repo, "add", "-u", "--", ".", env=environment)
+        if removed:
+            git(repo, "rm", "--cached", "--ignore-unmatch", "--", *removed, env=environment)
+        if added:
+            git(repo, "add", "--force", "--", *added, env=environment)
         if selected:
             git(repo, "add", "--", *selected, env=environment)
         tree = git(repo, "write-tree", env=environment).stdout.decode().strip()

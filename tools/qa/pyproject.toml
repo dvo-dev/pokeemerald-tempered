@@ -20,3 +20,6 @@ qa = "qa.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["qa*"]
+
+[tool.setuptools.package-data]
+qa = ["mgba-python.patch"]

@@ -1,6 +1,8 @@
 import ctypes
 from dataclasses import dataclass
+import hashlib
 from importlib.metadata import PackageNotFoundError, version
+from importlib.resources import files
 from pathlib import Path
 import re
 import resource
@@ -39,16 +41,16 @@ def load_runtime() -> Runtime:
             or metadata.get("status") != "built-static-checked"
             or metadata.get("environment") not in ("ad-hoc", "image")):
         raise QAError("The private mGBA runtime lacks valid build/static-check provenance")
-    patch = Path(__file__).resolve().parents[1] / "patches/mgba-python.patch"
-    lines = patch.read_text().splitlines()
+    patch = files(__package__).joinpath("mgba-python.patch").read_bytes()
+    lines = patch.decode("utf-8").splitlines()
     if not lines:
         raise QAError("The runtime patch provenance is empty")
     base = re.fullmatch(
         r"Base: mgba-emu/mgba ([0-9a-f]{40})", lines[0]
     )
     if (base is None or metadata.get("mgba_pin") != base.group(1)
-            or metadata.get("patch_sha256") != sha256(patch)):
-        raise QAError("Runtime source/patch differs from this checkout; rebuild the QA runtime")
+            or metadata.get("patch_sha256") != hashlib.sha256(patch).hexdigest()):
+        raise QAError("Runtime source/patch differs from this QA package; rebuild the QA runtime")
     library_name = metadata.get("library_path")
     if not isinstance(library_name, str) or not Path(library_name).is_absolute():
         raise QAError("Runtime library path is invalid")

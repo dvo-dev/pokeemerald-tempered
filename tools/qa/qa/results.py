@@ -70,13 +70,17 @@ class Run:
             raise QAError(f"Unknown or already executed case: {name}")
         case = matches[0]
         case["start_frame"] = self.manifest["current_frame"]
-        self.event("case-start", name=name)
         try:
+            self.event("case-start", name=name)
             yield case
         except QAError as error:
             case["status"] = {1: "fail", 2: "inconclusive", 3: "error", 64: "error"}[
                 error.exit_code
             ]
+            case["error"] = str(error)
+            raise
+        except Exception as error:
+            case["status"] = "error"
             case["error"] = str(error)
             raise
         else:

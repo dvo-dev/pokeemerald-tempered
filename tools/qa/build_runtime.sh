@@ -12,7 +12,7 @@ build_dir="$(realpath -m "$2")"
 prefix="$(realpath -m "$3")"
 python="$(realpath -ms "$4")"
 pin=fd9dc5c2cbf234365068855851107e762fc6211b
-patch="$qa_dir/patches/mgba-python.patch"
+patch="$qa_dir/qa/mgba-python.patch"
 
 if [[ "$(git -C "$source_dir" rev-parse HEAD)" != "$pin" ]]; then
     printf 'mGBA source is not at the recorded pin\n' >&2

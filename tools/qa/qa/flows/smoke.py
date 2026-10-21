@@ -65,15 +65,19 @@ class Oracles:
 
     def field_ready(self) -> bool:
         memory = self.memory
-        if not (
+        return (
             memory.read("main.c::gMain.callback2") & ~1 == self.overworld
             and not memory.read("palette.c::gPaletteFade.active")
             and not memory.read("script.c::sLockFieldControls")
             and memory.read("script.c::sGlobalScriptContextStatus") != 0
             and self.task(self.truck) is None
             and self.task(self.menu) is None
-        ):
+        )
+
+    def truck_ready(self) -> bool:
+        if not self.field_ready():
             return False
+        memory = self.memory
         group = memory.read("load_save.c::gSaveBlock1Ptr->location.mapGroup")
         number = memory.read("load_save.c::gSaveBlock1Ptr->location.mapNum")
         return (group, number) == self.truck_map
@@ -153,7 +157,7 @@ def execute(session, run, flow: str = "smoke") -> None:
         case["observed"] = capture(session, run, "title")
     with run.case("quickstart-truck") as case:
         session.tap("SELECT")
-        session.wait_until(oracles.field_ready, 3000, description="controllable truck overworld")
+        session.wait_until(oracles.truck_ready, 3000, description="controllable truck overworld")
         case["observed"] = capture(session, run, "truck")
     with run.case("start-menu-open") as case:
         session.tap("START")
@@ -161,5 +165,5 @@ def execute(session, run, flow: str = "smoke") -> None:
         case["observed"] = capture(session, run, "menu-open")
     with run.case("start-menu-close") as case:
         session.tap("B")
-        session.wait_until(oracles.field_ready, 300, description="menu closed and field restored")
+        session.wait_until(oracles.truck_ready, 300, description="menu closed and field restored")
         case["observed"] = capture(session, run, "menu-closed")

@@ -89,6 +89,88 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(first["source_tree"], second["source_tree"])
         self.assertEqual(first["snapshot_commit"], second["snapshot_commit"])
 
+    def test_staged_addition_captures_working_contents_without_touching_index(self):
+        (self.repo / "new.txt").write_text("staged")
+        self.git("add", "new.txt")
+        (self.repo / "new.txt").write_text("working")
+        (self.repo / "other.txt").write_text("untracked")
+        index = (self.repo / ".git/index").read_bytes()
+        directory = self.directory()
+        build.capture_source(self.repo, directory, include_dirty=True)
+        self.assertEqual((directory / "source/new.txt").read_text(), "working")
+        self.assertFalse((directory / "source/other.txt").exists())
+        self.assertEqual((self.repo / ".git/index").read_bytes(), index)
+        self.assertEqual(build.revision(self.repo, "HEAD"), self.head)
+        self.assertEqual((self.repo / "new.txt").read_text(), "working")
+
+    def test_staged_rename_captures_destination_without_touching_index(self):
+        self.git("mv", "data.txt", "renamed.txt")
+        (self.repo / "renamed.txt").write_text("working")
+        (self.repo / "other.txt").write_text("untracked")
+        index = (self.repo / ".git/index").read_bytes()
+        directory = self.directory()
+        build.capture_source(self.repo, directory, include_dirty=True)
+        self.assertFalse((directory / "source/data.txt").exists())
+        self.assertEqual((directory / "source/renamed.txt").read_text(), "working")
+        self.assertFalse((directory / "source/other.txt").exists())
+        self.assertEqual((self.repo / ".git/index").read_bytes(), index)
+        self.assertEqual(build.revision(self.repo, "HEAD"), self.head)
+        self.assertFalse((self.repo / "data.txt").exists())
+        self.assertEqual((self.repo / "renamed.txt").read_text(), "working")
+
+    def test_newly_tracked_pathspec_characters_are_literal(self):
+        name = "new[1].txt"
+        (self.repo / name).write_text("selected")
+        self.git("--literal-pathspecs", "add", "--", name)
+        (self.repo / "new1.txt").write_text("untracked")
+        directory = self.directory()
+        build.capture_source(self.repo, directory, include_dirty=True)
+        self.assertEqual((directory / "source" / name).read_text(), "selected")
+        self.assertFalse((directory / "source/new1.txt").exists())
+
+    def test_staged_addition_deleted_from_worktree_stays_absent(self):
+        path = self.repo / "new.txt"
+        path.write_text("staged")
+        self.git("add", "new.txt")
+        path.unlink()
+        index = (self.repo / ".git/index").read_bytes()
+        directory = self.directory()
+        build.capture_source(self.repo, directory, include_dirty=True)
+        self.assertFalse((directory / "source/new.txt").exists())
+        self.assertEqual((self.repo / ".git/index").read_bytes(), index)
+
+    def test_force_tracked_ignored_addition_is_included(self):
+        path = self.repo / "secret.local"
+        path.write_text("tracked fixture, not a secret")
+        self.git("add", "--force", "--", path.name)
+        index = (self.repo / ".git/index").read_bytes()
+        directory = self.directory()
+        build.capture_source(self.repo, directory, include_dirty=True)
+        self.assertEqual((directory / "source/secret.local").read_text(), path.read_text())
+        self.assertEqual((self.repo / ".git/index").read_bytes(), index)
+
+    def test_untracking_keeps_working_file_but_excludes_it_from_snapshot(self):
+        self.git("rm", "--cached", "data.txt")
+        index = (self.repo / ".git/index").read_bytes()
+        directory = self.directory()
+        build.capture_source(self.repo, directory, include_dirty=True)
+        self.assertFalse((directory / "source/data.txt").exists())
+        self.assertEqual((self.repo / "data.txt").read_text(), "committed")
+        self.assertEqual((self.repo / ".git/index").read_bytes(), index)
+
+    def test_untracked_previous_file_can_be_explicitly_selected_again(self):
+        self.git("rm", "--cached", "data.txt")
+        (self.repo / "data.txt").write_text("selected working copy")
+        index = (self.repo / ".git/index").read_bytes()
+        directory = self.directory()
+        build.capture_source(
+            self.repo, directory, include_dirty=True, untracked=("data.txt",)
+        )
+        self.assertEqual(
+            (directory / "source/data.txt").read_text(), "selected working copy"
+        )
+        self.assertEqual((self.repo / ".git/index").read_bytes(), index)
+
     def test_selected_untracked_edit_changes_identity(self):
         (self.repo / "new.txt").write_text("one")
         first = build.capture_source(

@@ -1,9 +1,11 @@
 # mGBA Python binding repairs
 
-`mgba-python.patch` targets the official
+[`qa/mgba-python.patch`](../qa/mgba-python.patch) targets the official
 [`mgba-emu/mgba` source at `fd9dc5c2cbf234365068855851107e762fc6211b`](https://github.com/mgba-emu/mgba/tree/fd9dc5c2cbf234365068855851107e762fc6211b).
 It is a downstream patch, not an upstream release or a separately maintained
 wrapper. The source retains its MPL-2.0 license.
+The patch is a package resource included in installed wheels as well as the
+checkout, so both entry points verify the same provenance bytes.
 
 The patch changes two files:
 
@@ -22,8 +24,8 @@ Apply only to a clean checkout of the exact pin. Check applicability before
 applying, and fail rather than silently dropping a patch:
 
 ```sh
-git -C "$MGBA_SOURCE" apply --check "$REPO/tools/qa/patches/mgba-python.patch"
-git -C "$MGBA_SOURCE" apply "$REPO/tools/qa/patches/mgba-python.patch"
+git -C "$MGBA_SOURCE" apply --check "$REPO/tools/qa/qa/mgba-python.patch"
+git -C "$MGBA_SOURCE" apply "$REPO/tools/qa/qa/mgba-python.patch"
 ```
 
 The static ABI gate does not import or execute mGBA:

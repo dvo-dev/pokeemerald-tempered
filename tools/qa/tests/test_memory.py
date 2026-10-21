@@ -1,8 +1,12 @@
 import itertools
 import os
 from pathlib import Path
+import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest.mock import Mock, patch
+
+from elftools.dwarf.structs import DWARFStructs
 
 from tools.qa.qa.build import Bundle
 from tools.qa.qa.errors import QAError
@@ -196,6 +200,72 @@ class MemoryTests(unittest.TestCase):
             concrete(alias)
 
 
+class SymbolSourceTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.path = Path(self.temporary.name) / "fixture.elf"
+        self.path.write_bytes(b"mock ELF")
+
+    def symbols(self, version, indices=(0, 1, 2)):
+        units, entries = [], []
+        directories = [b"one", b"two"]
+        if version >= 5:
+            directories.insert(0, b"/compile")
+        for ordinal, index in enumerate(indices):
+            address = 0x02000000 + ordinal * 4
+            top = Die("DW_TAG_compile_unit", {
+                "DW_AT_name": b"<stdin>", "DW_AT_comp_dir": b"/compile",
+            })
+            variable = Die("DW_TAG_variable", {
+                "DW_AT_name": b"local",
+                "DW_AT_location": b"\x03" + address.to_bytes(4, "little"),
+            }, target=scalar())
+            units.append(SimpleNamespace(
+                get_top_DIE=lambda top=top: top,
+                iter_DIEs=lambda variable=variable: iter([variable]),
+                structs=DWARFStructs(little_endian=True, dwarf_format=32,
+                                    address_size=4, dwarf_version=version),
+                program=SimpleNamespace(header={
+                    "version": version, "include_directory": directories,
+                    "file_entry": [SimpleNamespace(name=b"main.c", dir_index=index)],
+                }),
+            ))
+            entries.append({"st_value": address, "st_shndx": 1,
+                            "st_info": {"type": "STT_OBJECT"}})
+        dwarf = SimpleNamespace(
+            iter_CUs=lambda: iter(units), line_program_for_CU=lambda unit: unit.program,
+        )
+        table = Mock()
+        table.get_symbol_by_name.return_value = entries
+        elf = Mock(elfclass=32, little_endian=True, header={"e_machine": "EM_ARM"})
+        elf.has_dwarf_info.return_value = True
+        elf.get_section_by_name.return_value = table
+        elf.get_dwarf_info.return_value = dwarf
+        with patch("tools.qa.qa.memory.ELFFile", return_value=elf):
+            symbols = Symbols(self.path)
+        self.addCleanup(symbols.close)
+        return symbols
+
+    def test_directory_index_bases_and_qualified_duplicate_names(self):
+        for version in (2, 3, 4, 5):
+            with self.subTest(version=version):
+                symbols = self.symbols(version)
+                self.assertEqual([name for name, _ in symbols.units],
+                                 ["/compile/main.c", "one/main.c", "two/main.c"])
+                self.assertEqual(symbols.lookup("/compile/main.c::local")[0], 0x02000000)
+                self.assertEqual(symbols.lookup("one/main.c::local")[0], 0x02000004)
+                self.assertEqual(symbols.lookup("two/main.c::local")[0], 0x02000008)
+                with self.assertRaisesRegex(QAError, "Ambiguous ELF symbol"):
+                    symbols.lookup("local")
+
+    def test_invalid_directory_index_is_an_explicit_error(self):
+        for version in (4, 5):
+            with self.subTest(version=version):
+                with self.assertRaisesRegex(QAError, "directory index"):
+                    self.symbols(version, (3,))
+
+
 @unittest.skipUnless(os.environ.get("QA_TEST_BUNDLE"), "requires a real DINFO build bundle")
 class RealDwarfTests(unittest.TestCase):
     @classmethod
@@ -234,6 +304,16 @@ class RealDwarfTests(unittest.TestCase):
         self.assertEqual(view.bit_size, 1)
         self.write(view.address, bytes([1 << view.bit_shift]))
         self.assertEqual(self.memory.read("palette.c::gPaletteFade.active"), 1)
+
+    def test_directory_qualified_real_symbols(self):
+        self.assertEqual(
+            self.memory.function("src/title_screen.c::Task_TitleScreenPhase3"),
+            self.memory.function("title_screen.c::Task_TitleScreenPhase3"),
+        )
+        self.assertEqual(
+            self.memory.view("src/main.c::gMain.callback2").address,
+            self.memory.view("main.c::gMain.callback2").address,
+        )
 
     def test_real_definition_array_bound(self):
         self.assertEqual(self.memory.array_length("task.c::gTasks"), 16)

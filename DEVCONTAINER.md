@@ -32,6 +32,10 @@ library resolution. See [patch provenance](tools/qa/patches/README.md).
 Normal FFmpeg support is enabled to avoid additional EReader header patches.
 Qt, SDL, OpenGL, and scripting are disabled. The existing bundled native
 `make check` runner is neither replaced nor pointed at this private library.
+The final stage explicitly includes the Python shared runtime and runs
+`tools/qa/check_image.py` with core dumps disabled. It checks the private native
+import, making unresolved shared-library dependencies of the mGBA extension fail
+the image build rather than the first QA run.
 
 Build dependencies stay in a builder stage. The final image contains the
 private `/opt/qa-venv`, `/opt/mgba`, FFmpeg/ffprobe, provenance/static-check logs,
